@@ -1,0 +1,40 @@
+{% extends 'admin/change_form.html' %}
+
+{% block content %}
+
+
+{{ block.super }}
+
+{% endblock %}
+
+{% block object-tools-items %}
+
+
+{{ block.super }}
+{% endblock %}
+
+
+{% block submit_buttons_bottom %}
+    {{ block.super }}
+    
+    
+{% endblock %}
+
+
+{% block field_sets %}
+<div class="form-row">
+    <p>Delivery type:</p>
+    <select name="_delivery_type">
+        <option value="halalivery">Halalivery Delivery</option>
+        <option value="vendor">Vendor Delivery</option>
+        <option value="self_pickup">Self Pickup</option>
+    </select>
+    <br />
+    <input type="submit" value="Accept" name="_accept_order">
+    <input type="submit" value="Order prepared" name="_prepare_order">
+    <input type="submit" value="Order picked up" name="_picked_order">
+    <input type="submit" value="Order delivered" name="_delivered_order">
+    <input type="submit" value="Cancel" name="_cancel_order">
+</div>
+{{ block.super }}
+{% endblock %}

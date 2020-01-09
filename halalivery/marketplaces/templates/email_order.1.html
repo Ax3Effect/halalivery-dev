@@ -1,0 +1,19 @@
+<h1>Thanks for order!</h1>
+
+<h2>Your order {{ order_id }} has been accepted.</h2>
+
+<p> Items that you ordered: </p>
+{% for item in order_items %}
+<p>
+{{ item.quantity }}x {{ item.item.name }} - £{{ item.item.price }}
+{% for y in item.mods.all %}
+Option: {{ y.name }} - £{{ y.price }}
+
+{% endfor %}
+</p>
+{% endfor %}
+
+<p> Driver tip: £{{ order.driver_tip|add:"0"}}</p>
+<p> Halalivery fee: £2.50</p> 
+
+<p> Total: £{{ order_total }}</p>

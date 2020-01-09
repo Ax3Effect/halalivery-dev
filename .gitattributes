@@ -1,0 +1,4 @@
+Dockerrun.aws.json merge=ours
+newrelic.ini merge=ours
+nginx merge=ours
+.travis.yml merge=ours

@@ -1,0 +1,112 @@
+sudo: required
+language: python
+services:
+  - docker
+python:
+  - "3.6"
+
+env:
+  global:
+  - COMMIT=${TRAVIS_COMMIT::8}
+  - ELASTIC_BEANSTALK_ENV=`if [[ $TRAVIS_PULL_REQUEST == "false" ]] && [[ $TRAVIS_BRANCH == "master" ]]; then echo "halalivery-server-prod"; else echo "halalivery-server-qa"; fi`
+  - ELASTIC_BEANSTALK_WORKER_ENV=`if [[ $TRAVIS_PULL_REQUEST == "false" ]] && [[ $TRAVIS_BRANCH == "master" ]]; then echo "celery-beat-prod"; else echo "celery-beat-qa"; fi`
+  - EPOCH=`date +%s`
+
+branches:
+  only:
+  - qa
+  - master
+
+stages:
+  - before_install
+  - before_script
+  - script
+  - after_success
+  - deploy
+
+
+before_install:
+- pip install awscli
+- export PATH=$PATH:$HOME/.local/bin
+- export TAG=`if [[ $TRAVIS_PULL_REQUEST == "false" ]] && [[ $TRAVIS_BRANCH == "master" ]]; then echo "latest"; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi`
+- export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --output text --query 'Account')"
+- export REPO=$AWS_ACCOUNT_ID.dkr.ecr.eu-west-2.amazonaws.com/halalivery-server
+- export BUCKET_NAME=`if [[ $TRAVIS_PULL_REQUEST == "false" ]] && [[ $TRAVIS_BRANCH == "master" ]]; then echo "elasticbeanstalk-eu-west-2-${AWS_ACCOUNT_ID}"; else echo "elasticbeanstalk-eu-west-2-qa-${AWS_ACCOUNT_ID}"; fi`
+
+# - openssl aes-256-cbc -K $encrypted_1c259d666445_key -iv $encrypted_1c259d666445_iv -in ./travis/keys/github_deploy_key.enc -out github_deploy_key -d
+# - chmod +x ./scripts/setup_aws.sh
+# - chmod +x ./scripts/aws_push.sh
+
+before_script:
+- sudo chown -R travis ./travis/scripts/prepare_build.sh
+- sudo chmod +x ./travis/scripts/prepare_build.sh
+- ./travis/scripts/prepare_build.sh
+# - echo "Folders "
+# - ls ./
+# - docker-compose build
+
+script:
+- echo "Script"
+# - docker-compose run --rm web bash -c "flake8 . &&
+#                                          python wait_for_postgres.py &&
+#                                          ./manage.py test"
+#- docker-compose run --rm web bash -c "python wait_for_postgres.py && ./manage.py test"
+
+deploy:
+  - provider: elasticbeanstalk
+    access_key_id: $AWS_ACCESS_KEY_ID
+    secret_access_key:
+      secure: "$AWS_SECRET_ACCESS_KEY"
+    region: "eu-west-2"  
+    app: "halalivery-server"
+    env: $ELASTIC_BEANSTALK_ENV
+    #bucket_name: "elasticbeanstalk-eu-west-2-qa-${AWS_ACCOUNT_ID}"
+    bucket_name: $BUCKET_NAME
+    zip_file: ../travis-${TRAVIS_COMMIT}-${EPOCH}.zip
+    skip_cleanup: true
+    on:
+      branch: $TRAVIS_BRANCH
+
+  - provider: elasticbeanstalk
+    access_key_id: $AWS_ACCESS_KEY_ID
+    secret_access_key:
+      secure: "$AWS_SECRET_ACCESS_KEY"
+    region: "eu-west-2"  
+    app: "halalivery-worker"
+    env: $ELASTIC_BEANSTALK_WORKER_ENV
+    zip_file: ../travis-${TRAVIS_BUILD_NUMBER}-${EPOCH}-celery-beat.zip
+    skip_cleanup: true
+    #bucket_name: "elasticbeanstalk-eu-west-2-qa-${AWS_ACCOUNT_ID}"
+    bucket_name: $BUCKET_NAME
+    on:
+      branch: $TRAVIS_BRANCH
+    #skip_cleanup: true
+# deploy:
+#   - provider: elasticbeanstalk
+#     access_key_id: $AWS_ACCESS_KEY_ID
+#     secret_access_key:
+#       secure: "$AWS_SECRET_ACCESS_KEY"
+#     region: "eu-west-2"  
+#     app: "halalivery-server"
+#     env: "halalivery-server-prod"
+#     bucket_name: "elasticbeanstalk-eu-west-2-${AWS_ACCOUNT_ID}"
+#     on:
+#       branch: master
+
+after_success:
+# - docker build -t halalivery-server -f Dockerfile .
+# - docker build -t halalivery-server-nginx -f ./nginx/Dockerfile ./nginx/
+# - eval $(aws ecr get-login --no-include-email --region eu-west-2)
+# - docker tag halalivery-server:latest ${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-2.amazonaws.com/halalivery-server-qa:latest
+# - docker push ${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-2.amazonaws.com/halalivery-server-qa:latest
+# - docker tag halalivery-server-nginx:latest ${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-2.amazonaws.com/halalivery-server-nginx-qa:latest
+# - docker push ${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-2.amazonaws.com/halalivery-server-nginx-qa:latest
+- sudo chown -R travis ./travis/scripts/aws_push.sh
+- sudo chmod +x ./travis/scripts/aws_push.sh
+- ./travis/scripts/aws_push.sh
+
+notifications:
+  email: false
+
+cache:
+  pip: true

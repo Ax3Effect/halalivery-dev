@@ -1,0 +1,23 @@
+<html>
+{% autoescape off %}
+<p> User: {{ user }}</p>
+<p> Order ID: {{ order_id }}</p>
+<p> Order Information: {{ order_info }}</p>
+<p> Delivery fee: £2.50</p>
+<p> Order Total Amount: £{{ order_amount }}</p>
+{% endautoescape %}
+<form action="/api/v1/marketplaces/processOrder?order_id={{ order_id }}" method="POST">
+    {% csrf_token %}
+  <script
+    src="https://checkout.stripe.com/checkout.js" class="stripe-button"
+    data-key="{{ stripe_pb_key }}"
+    data-amount="{{ amount }}"
+    data-name="Stripe.com"
+    data-description="Example charge"
+    data-image="https://stripe.com/img/documentation/checkout/marketplace.png"
+    data-locale="auto"
+    data-currency="GBP"
+    data-zip-code="true">
+  </script>
+</form>
+</html>

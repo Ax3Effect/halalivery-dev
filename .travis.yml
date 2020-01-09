@@ -1,0 +1,92 @@
+sudo: required
+language: python
+services:
+  - docker
+python:
+  - "3.6"
+
+branches:
+  only:
+  - qa
+  - master
+
+notifications:
+  email: false
+
+cache:
+  pip: true
+
+env:
+  global:
+  - COMMIT=${TRAVIS_COMMIT::8}
+  - ELASTIC_BEANSTALK_ENV=`if [[ $TRAVIS_PULL_REQUEST == "false" ]] && [[ $TRAVIS_BRANCH == "master" ]]; then echo "halalivery-server-prod"; else echo "halalivery-server-qa"; fi`
+  - ELASTIC_BEANSTALK_WORKER_ENV=`if [[ $TRAVIS_PULL_REQUEST == "false" ]] && [[ $TRAVIS_BRANCH == "master" ]]; then echo "celery-beat-prod"; else echo "celery-beat-qa"; fi`
+  - EPOCH=`date +%s`
+
+stages:
+  - before_install
+  - before_script
+  - script
+  - after_success
+  #- before_deploy
+  - deploy
+  - after_deploy
+
+before_install:
+  - pip install awscli
+  - export PATH=$PATH:$HOME/.local/bin
+  - export TAG=`if [[ $TRAVIS_PULL_REQUEST == "false" ]] && [[ $TRAVIS_BRANCH == "master" ]]; then echo "latest"; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi`
+  - export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --output text --query 'Account')"
+  - export REPO=$AWS_ACCOUNT_ID.dkr.ecr.eu-west-2.amazonaws.com/halalivery-server
+  - export BUCKET_NAME=`if [[ $TRAVIS_PULL_REQUEST == "false" ]] && [[ $TRAVIS_BRANCH == "master" ]]; then echo "elasticbeanstalk-eu-west-2-${AWS_ACCOUNT_ID}"; else echo "elasticbeanstalk-eu-west-2-qa-${AWS_ACCOUNT_ID}"; fi`
+
+before_script:
+
+script:
+- echo "Tests should be run here. But no tests for now."
+
+after_success:
+  - sudo chown -R travis ./travis/scripts/prepare_build.sh
+  - sudo chmod +x ./travis/scripts/prepare_build.sh
+  - ./travis/scripts/prepare_build.sh
+  - sudo chown -R travis ./travis/scripts/aws_push.sh
+  - sudo chmod +x ./travis/scripts/aws_push.sh
+  - ./travis/scripts/aws_push.sh
+
+#before_deploy:
+
+
+deploy:
+  - provider: elasticbeanstalk
+    access_key_id: $AWS_ACCESS_KEY_ID
+    secret_access_key:
+      secure: "$AWS_SECRET_ACCESS_KEY"
+    region: "eu-west-2"  
+    app: "halalivery-server"
+    env: $ELASTIC_BEANSTALK_ENV
+    bucket_name: $BUCKET_NAME
+    bucket_path: halalivery-server
+    zip_file: ../halalivery-server.zip
+    skip_cleanup: true
+    only_create_app_version: false
+    on:
+      branch: $TRAVIS_BRANCH
+
+  - provider: elasticbeanstalk
+    access_key_id: $AWS_ACCESS_KEY_ID
+    secret_access_key:
+      secure: "$AWS_SECRET_ACCESS_KEY"
+    region: "eu-west-2"  
+    app: "halalivery-worker"
+    env: $ELASTIC_BEANSTALK_WORKER_ENV
+    bucket_name: $BUCKET_NAME
+    bucket_path: halalivery-worker
+    zip_file: ../halalivery-worker.zip
+    skip_cleanup: true
+    only_create_app_version: false
+    on:
+      branch: $TRAVIS_BRANCH
+
+after_deploy:
+#   - rm ../halalivery-server.zip
+#   - rm ../halalivery-worker.zip

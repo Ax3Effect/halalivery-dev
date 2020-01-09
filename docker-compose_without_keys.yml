@@ -1,0 +1,133 @@
+version: "2"
+
+services:
+  # postgres:
+  #   mem_limit: 1024m
+  #   #image: kartoza/postgis:9.6-2.4
+  #   image: postgres:9.6
+  #   # environment:
+  #   # - POSTGRES_USER=docker
+  #   # - POSTGRES_PASS=docker
+  #   networks:
+  #     - halalivery-backend-tier
+  #   ports:
+  #     - "5432:5432"
+  postgis:
+    mem_limit: 1024m
+    image: kartoza/postgis:9.6-2.4
+    environment:
+    - POSTGRES_USER=docker
+    - POSTGRES_PASS=docker
+    networks:
+      - halalivery-backend-tier
+    ports:
+      - "5432:5432"
+  web:
+    mem_limit: 512m
+    restart: always
+    networks:
+      - halalivery-backend-tier
+    environment:
+      - DJANGO_DEBUG=Yes
+      - DJANGO_SECRET_KEY=local
+      - DJANGO_CONFIGURATION=Local
+      - DJANGO_SETTINGS_MODULE=halalivery.config
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    image: web
+    build: ./
+    command: >
+      bash -c "python wait_for_postgis.py &&
+              ./manage.py makemigrations &&
+              ./manage.py migrate &&
+              ./manage.py collectstatic --noinput &&
+              ./manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./:/code
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgis
+  documentation:
+    mem_limit: 256m
+    image: documentation
+    restart: always
+    build: ./
+    command: "mkdocs serve"
+    networks:
+      - halalivery-backend-tier
+    volumes:
+      - ./:/code
+    ports:
+      - "8001:8001"
+
+  celery:
+    mem_limit: 256m
+    image: celery
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      args:
+        STATIC_URL: "/static/"
+    environment:
+      - DJANGO_SECRET_KEY=local
+      - DJANGO_DEBUG=Yes
+      - DJANGO_CONFIGURATION=Local
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    command: bash -c "celery -A halalivery worker --app=halalivery.celeryconf:app --loglevel=info"
+    restart: always
+    networks:
+      - halalivery-backend-tier
+    volumes:
+      - ./:/code
+    depends_on:
+      - postgis
+      - web
+      - redis
+  
+  celery-beat:
+    mem_limit: 128m
+    image: celery-beat
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      args:
+        STATIC_URL: "/static/"
+    environment:
+      - DJANGO_SECRET_KEY=local
+      - DJANGO_DEBUG=Yes
+      - DJANGO_CONFIGURATION=Local
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    command: bash -c "celery -A halalivery beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler --quiet"
+    restart: always
+    volumes:
+      - ./:/code
+    networks:
+      - halalivery-backend-tier
+    depends_on:
+      - postgis
+      - web
+      - redis
+      - celery
+
+  redis:
+    mem_limit: 256m
+    image: library/redis:latest
+    restart: unless-stopped
+    networks:
+      - halalivery-backend-tier
+    volumes:
+      - halalivery-redis:/data
+    ports:
+      - 6379:6379
+
+volumes:
+  halalivery-db:
+    driver: local
+  halalivery-redis:
+    driver: local
+  halalivery-search:
+    driver: local
+
+networks:
+  halalivery-backend-tier:
+    driver: bridge

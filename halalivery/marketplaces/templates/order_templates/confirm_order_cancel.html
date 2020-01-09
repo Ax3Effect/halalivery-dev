@@ -1,0 +1,11 @@
+{% extends "admin/base_site.html" %} {% block content %}
+<form action="" method="post">
+  {% csrf_token %}
+  <p>
+    <h4>Are you sure you want to cancel Order #{{ order.id }}?</h4>
+  </p>
+
+  <input type="submit" name="reject_order_cancel" value="No" />
+  <input type="submit" name="confirm_order_cancel" value="Yes" />
+</form>
+{% endblock %}
